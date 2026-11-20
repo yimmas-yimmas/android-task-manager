@@ -1,4 +1,4 @@
-package io.github.haf280.tvrecents;
+package com.playcube.taskmanager;
 
 import android.app.Activity;
 import android.content.Intent;

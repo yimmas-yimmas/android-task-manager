@@ -1,8 +1,8 @@
 #!/bin/sh
-# Builds out/tv-recents.apk. Needs Java 17 and the Android SDK (platform 34, build-tools 34.0.0).
+# Builds out/playcube-task-manager.apk. Needs Java 17 and the Android SDK (platform 34, build-tools 34.0.0).
 #   macOS:  brew install openjdk@17 && brew install --cask android-commandlinetools
 #           sdkmanager "platforms;android-34" "build-tools;34.0.0"
-# Then install on your TV:  adb connect <TV_IP>:5555 && adb install -r out/tv-recents.apk
+# Then install on your TV:  adb connect <TV_IP>:5555 && adb install -r out/playcube-task-manager.apk
 set -e
 cd "$(dirname "$0")"
 
@@ -30,5 +30,5 @@ cp out/base.apk out/unsigned.apk; (cd out/dex && zip -q ../unsigned.apk classes.
 KS=${KEYSTORE:-key.jks}; PASS=${KEYSTORE_PASS:-tvrecents}
 [ -f "$KS" ] || keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias recents \
   -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=tv-recents" >/dev/null 2>&1
-"$BT/apksigner" sign --ks "$KS" --ks-pass "pass:$PASS" --out out/tv-recents.apk out/aligned.apk
-echo "Built out/tv-recents.apk"
+"$BT/apksigner" sign --ks "$KS" --ks-pass "pass:$PASS" --out out/playcube-task-manager.apk out/aligned.apk
+echo "Built out/playcube-task-manager.apk"

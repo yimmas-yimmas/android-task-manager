@@ -1,0 +1,28 @@
+name: Build PlayCube Task Manager APK
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Build APK
+        run: bash build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playcube-task-manager-apk
+          path: out/playcube-task-manager.apk

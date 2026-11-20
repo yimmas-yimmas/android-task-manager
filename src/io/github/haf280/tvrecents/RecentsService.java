@@ -1,4 +1,4 @@
-package io.github.haf280.tvrecents;
+package com.playcube.taskmanager;
 
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
@@ -20,6 +20,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -45,6 +46,7 @@ public class RecentsService extends AccessibilityService {
     Panel.Cover cover;
     String foreground;   // the app on screen; null when it's the home screen
     boolean homeHeld, longFired;
+    final LinkedHashSet<String> selectedPkgs = new LinkedHashSet<>();
 
     @Override protected void onServiceConnected() {
         instance = this;
@@ -175,11 +177,39 @@ public class RecentsService extends AccessibilityService {
             if (it.pkg.equals(foreground)) return; // already on screen
             startActivity(new Intent(it.launch).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
-        @Override public void close(AppList.Item it) { closeApps(Collections.singletonList(it.pkg), it.label); }
+        @Override public void close(AppList.Item it) {
+            if (Protection.locked(RecentsService.this, it.pkg)) {
+                showPanel("Protected: " + it.label);
+                return;
+            }
+            closeApps(Collections.singletonList(it.pkg), it.label);
+        }
+        @Override public boolean selected(AppList.Item it) { return selectedPkgs.contains(it.pkg); }
+        @Override public void select(AppList.Item it, boolean checked) {
+            if (checked && !Protection.locked(RecentsService.this, it.pkg)) selectedPkgs.add(it.pkg);
+            else selectedPkgs.remove(it.pkg);
+        }
+        @Override public boolean protectedApp(AppList.Item it) { return Protection.locked(RecentsService.this, it.pkg); }
+        @Override public void protect(AppList.Item it, boolean on) {
+            Protection.set(RecentsService.this, it.pkg, on);
+            if (Protection.locked(RecentsService.this, it.pkg)) selectedPkgs.remove(it.pkg);
+        }
+        @Override public void closeSelected() {
+            List<String> pkgs = new ArrayList<>();
+            for (String pkg : selectedPkgs) if (!Protection.locked(RecentsService.this, pkg)) pkgs.add(pkg);
+            if (pkgs.isEmpty()) { showPanel("No unprotected apps selected"); return; }
+            closeApps(pkgs, null);
+        }
         @Override public void closeAll(List<AppList.Item> items) {
             List<String> pkgs = AppList.closeAllTargets(RecentsService.this, items);
             pkgs.remove(foreground); // never the app you're in
+            pkgs.removeIf(pkg -> Protection.locked(RecentsService.this, pkg));
+            if (pkgs.isEmpty()) { showPanel("Nothing to close"); return; }
             closeApps(pkgs, null);
+        }
+        @Override public void neverClose() {
+            hidePanel();
+            startActivity(new Intent(RecentsService.this, ProtectedActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
         @Override public void buttons() {
             hidePanel();
@@ -201,6 +231,10 @@ public class RecentsService extends AccessibilityService {
 
     void closeApps(List<String> pkgs, CharSequence label) {
         if (busy() || pkgs.isEmpty()) return;
+        // Guard every closing path, including remote shortcuts, at the execution boundary.
+        pkgs = new ArrayList<>(pkgs);
+        pkgs.removeIf(pkg -> Protection.locked(this, pkg));
+        if (pkgs.isEmpty()) { showPanel("No unprotected apps to close"); return; }
         hidePanel();
         returnTo = foreground != null && !pkgs.contains(foreground) ? foreground : null;
         singleLabel = label;
@@ -290,6 +324,7 @@ public class RecentsService extends AccessibilityService {
 
     void finishClosing() {
         step = 0;
+        selectedPkgs.clear();
         AppList.markClosed(this, done);
         // Back to where you were: the app you were watching, or the home screen.
         if (returnTo != null) {

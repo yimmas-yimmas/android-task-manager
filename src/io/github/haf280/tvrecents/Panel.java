@@ -1,4 +1,4 @@
-package io.github.haf280.tvrecents;
+package com.playcube.taskmanager;
 
 import android.app.ActivityManager;
 import android.content.Context;
@@ -30,6 +30,12 @@ final class Panel {
         void open(AppList.Item it);
         void close(AppList.Item it);
         void closeAll(List<AppList.Item> items);
+        void closeSelected();
+        void neverClose();
+        boolean selected(AppList.Item it);
+        void select(AppList.Item it, boolean checked);
+        boolean protectedApp(AppList.Item it);
+        void protect(AppList.Item it, boolean protect);
         void buttons();
         void dismiss();
     }
@@ -119,14 +125,16 @@ final class Panel {
                 final AppList.Item it = items.get(i);
                 boolean cur = it.pkg.equals(current);
                 if (cur) keep = it.label.toString();
-                View card = card(it, cur, v -> a.open(it), () -> a.close(it));
+                View card = card(it, cur, v -> a.open(it), () -> a.close(it), a);
                 row.addView(card);
                 if (i == focus) first = card;
             }
-            row.addView(pill("✕   Close all", keep != null ? "Keeps " + keep + " open" : "Frees memory", v -> a.closeAll(items)));
+            row.addView(pill("✓  Close selected", "Only checked apps", v -> a.closeSelected()));
+            row.addView(pill("✕  Close all", "Respects Never Close", v -> a.closeAll(items)));
         }
         View buttons = pill("Buttons", "Remote shortcuts", v -> a.buttons());
         row.addView(buttons);
+        row.addView(pill("Never Close", "Manage protected apps", v -> a.neverClose()));
         if (first == null) first = buttons;
 
         // Keys.
@@ -150,7 +158,7 @@ final class Panel {
         return root;
     }
 
-    View card(AppList.Item it, boolean current, View.OnClickListener open, final Runnable close) {
+    View card(AppList.Item it, boolean current, View.OnClickListener open, final Runnable close, final Actions a) {
         final LinearLayout card = new LinearLayout(c);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setFocusable(true);
@@ -175,6 +183,22 @@ final class Panel {
         shade.setBackgroundColor(0x80000000);
         art.addView(shade, new FrameLayout.LayoutParams(-1, -1));
         art.setTag(shade);
+        // Dedicated D-pad focusable ×: close the highlighted app without pressing Menu.
+        final TextView x = text("×", 24, WHITE);
+        x.setGravity(Gravity.CENTER);
+        x.setTypeface(medium);
+        x.setFocusable(true);
+        x.setClickable(true);
+        x.setContentDescription("Force stop " + it.label);
+        x.setBackground(round(0xD94D2830, 9));
+        FrameLayout.LayoutParams xp = new FrameLayout.LayoutParams(dp(39), dp(39), Gravity.TOP | Gravity.END);
+        xp.setMargins(0, dp(6), dp(6), 0);
+        art.addView(x, xp);
+        x.setOnFocusChangeListener((v, f) -> {
+            x.setBackground(round(f ? WHITE : 0xD94D2830, 9));
+            x.setTextColor(f ? 0xFF111111 : WHITE);
+        });
+        x.setOnClickListener(v -> close.run());
         card.addView(art, new LinearLayout.LayoutParams(dp(200), dp(112)));
 
         final TextView name = text(it.label, 15, WHITE);
@@ -185,6 +209,50 @@ final class Panel {
         final TextView sub = text(current ? "On screen" : ago(it.used), 12, TEXT3);
         sub.setPadding(dp(2), dp(3), dp(2), 0);
         card.addView(sub);
+
+        // Selection and protection are separate remote-focusable buttons.
+        LinearLayout controls = new LinearLayout(c);
+        controls.setGravity(Gravity.CENTER_VERTICAL);
+        controls.setPadding(0, dp(8), 0, 0);
+        TextView check = text("", 12, WHITE);
+        TextView shield = text("", 12, WHITE);
+        check.setTypeface(medium);
+        shield.setTypeface(medium);
+        check.setGravity(Gravity.CENTER);
+        shield.setGravity(Gravity.CENTER);
+        check.setFocusable(true);
+        check.setClickable(true);
+        shield.setFocusable(true);
+        shield.setClickable(true);
+        check.setPadding(dp(5), dp(7), dp(5), dp(7));
+        shield.setPadding(dp(5), dp(7), dp(5), dp(7));
+        controls.addView(check, new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(shield, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(controls);
+        Runnable redraw = () -> {
+            boolean locked = a.protectedApp(it);
+            check.setText(locked ? "Protected" : (a.selected(it) ? "☑ Selected" : "☐ Select"));
+            shield.setText(locked ? "● Locked" : "○ Protect");
+            x.setAlpha(locked ? 0.32f : 1f);
+            check.setAlpha(locked ? 0.45f : 1f);
+        };
+        check.setOnClickListener(v -> {
+            if (a.protectedApp(it)) return;
+            a.select(it, !a.selected(it));
+            redraw.run();
+        });
+        shield.setOnClickListener(v -> {
+            a.protect(it, !a.protectedApp(it));
+            redraw.run();
+        });
+        for (TextView control : new TextView[] {check, shield}) {
+            control.setOnFocusChangeListener((v, f) -> {
+                control.setBackground(round(f ? WHITE : 0x22000000, 6));
+                control.setTextColor(f ? 0xFF111111 : WHITE);
+            });
+            control.setBackground(round(0x22000000, 6));
+        }
+        redraw.run();
 
         style(card, art, name, sub, false);
         card.setOnFocusChangeListener((v, f) -> style(card, art, name, sub, f));

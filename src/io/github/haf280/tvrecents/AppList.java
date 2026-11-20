@@ -1,4 +1,4 @@
-package io.github.haf280.tvrecents;
+package com.playcube.taskmanager;
 
 import android.app.ActivityManager;
 import android.content.Context;
@@ -125,14 +125,14 @@ final class AppList {
         if (a11y != null) for (String s : a11y.split(":")) skip.add(s.split("/")[0]);
 
         List<String> out = new ArrayList<>();
-        for (Item it : items) if (!skip.contains(it.pkg) && !out.contains(it.pkg) && !isTvMaker(it.pkg)) out.add(it.pkg);
+        for (Item it : items) if (!skip.contains(it.pkg) && !out.contains(it.pkg) && !isTvMaker(it.pkg) && !Protection.locked(c, it.pkg)) out.add(it.pkg);
         for (String cat : new String[] {Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER}) {
             for (ResolveInfo r : pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(cat), 0)) {
                 String p = r.activityInfo.packageName;
                 int f = r.activityInfo.applicationInfo.flags;
                 boolean stockSystem = (f & ApplicationInfo.FLAG_SYSTEM) != 0 && (f & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
                 if (stockSystem || (f & ApplicationInfo.FLAG_PERSISTENT) != 0 || skip.contains(p) || out.contains(p)
-                        || isTvMaker(p)) continue;
+                        || isTvMaker(p) || Protection.locked(c, p)) continue;
                 out.add(p);
             }
         }

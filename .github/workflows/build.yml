@@ -1,0 +1,21 @@
+name: Build PlayCube Task Manager APK
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build APK with upstream Android SDK Docker image
+        run: sh docker/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playcube-task-manager-apk
+          path: out/playcube-task-manager.apk

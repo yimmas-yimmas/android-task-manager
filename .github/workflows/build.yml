@@ -13,16 +13,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Install Android SDK components
-        run: |
-          echo "ANDROID_HOME=${ANDROID_HOME}"
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
-      - name: Build APK
-        run: bash build.sh
+      - name: Build APK with upstream Android SDK Docker image
+        run: sh docker/build.sh
       - uses: actions/upload-artifact@v4
         with:
           name: playcube-task-manager-apk

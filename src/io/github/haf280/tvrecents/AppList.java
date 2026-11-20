@@ -110,31 +110,16 @@ final class AppList {
     }
 
     /**
-     * The listed apps, then every other app you can open that you installed or that got updated
-     * (Netflix, YouTube...), since some start themselves in the background without being opened.
-     * Never stock system apps (Live TV, Settings), home screens, the keyboard, or apps with an
-     * accessibility service on (force stop would switch that service off).
+     * Close All is deliberately limited to the cards actually shown in Recents.
+     * A launchable installed app is NOT necessarily running, and bulk force-stopping
+     * every installed app may interrupt receivers, background downloads or playback.
      */
     static List<String> closeAllTargets(Context c, List<Item> items) {
-        PackageManager pm = c.getPackageManager();
-        Set<String> skip = homes(pm);
-        skip.add(c.getPackageName());
-        String ime = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
-        if (ime != null) skip.add(ime.split("/")[0]);
-        String a11y = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (a11y != null) for (String s : a11y.split(":")) skip.add(s.split("/")[0]);
-
         List<String> out = new ArrayList<>();
-        for (Item it : items) if (!skip.contains(it.pkg) && !out.contains(it.pkg) && !isTvMaker(it.pkg) && !Protection.locked(c, it.pkg)) out.add(it.pkg);
-        for (String cat : new String[] {Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER}) {
-            for (ResolveInfo r : pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(cat), 0)) {
-                String p = r.activityInfo.packageName;
-                int f = r.activityInfo.applicationInfo.flags;
-                boolean stockSystem = (f & ApplicationInfo.FLAG_SYSTEM) != 0 && (f & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
-                if (stockSystem || (f & ApplicationInfo.FLAG_PERSISTENT) != 0 || skip.contains(p) || out.contains(p)
-                        || isTvMaker(p) || Protection.locked(c, p)) continue;
-                out.add(p);
-            }
+        for (Item it : items) {
+            if (it == null || it.pkg == null || out.contains(it.pkg)
+                    || Protection.locked(c, it.pkg)) continue;
+            out.add(it.pkg);
         }
         return out;
     }

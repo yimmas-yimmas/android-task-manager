@@ -121,7 +121,7 @@ public class ButtonsActivity extends Activity {
         View first = row("Recent apps", "Show the switcher, or hide it", v -> save(Buttons.RECENTS));
         row("Home", null, v -> save(Buttons.HOME));
         row("Back", null, v -> save(Buttons.BACK));
-        row("Close all apps", "Everything except the app on screen", v -> save(Buttons.CLOSE_ALL));
+        row("Close all apps", "Recent apps only; keeps current and protected", v -> save(Buttons.CLOSE_ALL));
         header("Open an app");
         for (final String[] app : apps()) row(app[1], null, v -> save(Buttons.APP + app[0]));
         if (now != null) {

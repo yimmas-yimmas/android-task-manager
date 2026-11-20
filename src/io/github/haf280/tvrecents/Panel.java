@@ -130,7 +130,7 @@ final class Panel {
                 if (i == focus) first = card;
             }
             row.addView(pill("✓  Close selected", "Only checked apps", v -> a.closeSelected()));
-            row.addView(pill("✕  Close all", "Respects Never Close", v -> a.closeAll(items)));
+            row.addView(pill("✕  Close all", "Recent cards · keeps current", v -> a.closeAll(items)));
         }
         View buttons = pill("Buttons", "Remote shortcuts", v -> a.buttons());
         row.addView(buttons);

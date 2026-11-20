@@ -44,7 +44,8 @@ public class RecentsService extends AccessibilityService {
     Panel ui;
     View panel;
     Panel.Cover cover;
-    String foreground;   // the app on screen; null when it's the home screen
+    String foreground;   // last app seen by Accessibility; null on Home
+    String panelSource;  // snapshot of the app under the overlay when it was opened
     boolean homeHeld, longFired;
     final LinkedHashSet<String> selectedPkgs = new LinkedHashSet<>();
 
@@ -146,7 +147,38 @@ public class RecentsService extends AccessibilityService {
 
     // ---- Switcher ----
 
+    /**
+     * Check the actually visible app before opening an overlay or executing a mapped
+     * Close All shortcut. Cached foreground history alone may be stale.
+     */
+    String visibleApp() {
+        try {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null || root.getPackageName() == null) return null;
+            String pkg = root.getPackageName().toString();
+            if (pkg.equals(getPackageName()) || pkg.equals(SETTINGS)
+                    || pkg.equals("android") || pkg.equals("com.android.systemui")
+                    || AppList.homes(getPackageManager()).contains(pkg)) return null;
+            if (AppList.launchIntent(getPackageManager(), pkg) == null) return null;
+            return pkg;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     void showPanel(String status) {
+        if (panel == null && !busy()) {
+            String observed = visibleApp();
+            if (observed != null) {
+                foreground = observed;
+                if (!observed.equals(lastNoted)) {
+                    AppList.opened(this, observed);
+                    lastNoted = observed;
+                }
+            }
+            // The overlay can obscure the underlying app. Keep the pre-overlay snapshot.
+            panelSource = foreground;
+        }
         hidePanel();
         List<AppList.Item> items = AppList.load(this, 12);
         panel = ui.build(items, foreground, status, actions);
@@ -201,10 +233,17 @@ public class RecentsService extends AccessibilityService {
             closeApps(pkgs, null);
         }
         @Override public void closeAll(List<AppList.Item> items) {
+            // Only the displayed recent cards are eligible; never enumerate installed apps.
             List<String> pkgs = AppList.closeAllTargets(RecentsService.this, items);
-            pkgs.remove(foreground); // never the app you're in
+            String live = visibleApp(); // useful for a direct remote Close All shortcut
+            if (live != null) pkgs.remove(live);
+            if (foreground != null) pkgs.remove(foreground);
+            if (panel != null && panelSource != null) pkgs.remove(panelSource);
+            // Fail safe: if Android skipped an Accessibility event, the newest recent
+            // card is the most likely app currently on screen. Leave it running.
+            if (!items.isEmpty()) pkgs.remove(items.get(0).pkg);
             pkgs.removeIf(pkg -> Protection.locked(RecentsService.this, pkg));
-            if (pkgs.isEmpty()) { showPanel("Nothing to close"); return; }
+            if (pkgs.isEmpty()) { showPanel("No other recent apps to close"); return; }
             closeApps(pkgs, null);
         }
         @Override public void neverClose() {
@@ -235,8 +274,10 @@ public class RecentsService extends AccessibilityService {
         pkgs = new ArrayList<>(pkgs);
         pkgs.removeIf(pkg -> Protection.locked(this, pkg));
         if (pkgs.isEmpty()) { showPanel("No unprotected apps to close"); return; }
+        String restore = panel != null && panelSource != null ? panelSource : visibleApp();
+        if (restore == null) restore = foreground;
         hidePanel();
-        returnTo = foreground != null && !pkgs.contains(foreground) ? foreground : null;
+        returnTo = restore != null && !pkgs.contains(restore) ? restore : null;
         singleLabel = label;
         memBefore = AppList.memory(this).availMem;
         queue.clear();

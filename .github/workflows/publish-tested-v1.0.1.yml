@@ -1,0 +1,44 @@
+name: Publish tested v1.0.1 APK as GitHub Release asset
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-tested-v1.0.1.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the exact tested v1.0.1 APK from successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          gh run download 44750637620 --repo "$GITHUB_REPOSITORY" --name playcube-task-manager-apk --dir release-assets
+          test -s release-assets/playcube-task-manager.apk
+          (cd release-assets && sha256sum playcube-task-manager.apk > SHA256SUMS.txt)
+          ls -lh release-assets/
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists; upload matching v1.0.1 artifact."
+            gh release upload v1.0.1 release-assets/playcube-task-manager.apk release-assets/SHA256SUMS.txt \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create v1.0.1 \
+              release-assets/playcube-task-manager.apk \
+              release-assets/SHA256SUMS.txt \
+              --repo "$GITHUB_REPOSITORY" \
+              --target 069051b51a62d48d153042b3c1ff88c055a894a1 \
+              --title "PlayCube Task Manager v1.0.1" \
+              --notes "First device-tested release. Recent-apps switcher with per-app ×, Close Selected, Never Close list, and corrected Close All that skips the active app and does not enumerate all installed apps. Uses Android Accessibility; no Shizuku or persistent ADB required. If upgrading from v1.0.0, APK signatures differ because the early CI builds used temporary signing keys; uninstall the old package before installing this APK. This release uploads the exact APK produced by successful run 44750637620."
+          fi
